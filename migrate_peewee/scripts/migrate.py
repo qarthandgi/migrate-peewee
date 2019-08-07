@@ -140,8 +140,6 @@ def migrate(database, host, port, user, password, migrations_dir):
 		password=password
 	)
 
-	print(f'password, {password}')
-
 	migrations = load_migrations(migrations_dir)
 	validate_refs(migrations)
 	applied = get_applied()
