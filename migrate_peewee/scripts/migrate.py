@@ -129,7 +129,7 @@ def apply_migrations(migrations, applied, migrator):
 @click.option('-h', '--host', envvar='DATABASE_HOST', help='Database host')
 @click.option('-p', '--port', envvar='DATABASE_PORT', help='Database port')
 @click.option('-u', '--user', envvar='DATABASE_USER', help='Database user')
-@click.option('--password', envvar='DATABASE_PASSWORD', help='Database password', prompt=True, hide_input=True, confirmation_prompt=True)
+@click.option('--password', envvar='DATABASE_PASSWORD', help='Database password', prompt=True, hide_input=True)
 @click.option('--migrations-dir', 'migrations_dir', default='migrations', help='Migrations base directory')
 def migrate(database, host, port, user, password, migrations_dir):
 	db.init(
