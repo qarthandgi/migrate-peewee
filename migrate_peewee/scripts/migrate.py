@@ -124,22 +124,14 @@ def apply_migrations(migrations, applied, migrator):
 
 
 
-@click.command()
-@click.option('-d', '--database', envvar='DATABASE_NAME', help='Database name')
-@click.option('-h', '--host', envvar='DATABASE_HOST', help='Database host')
-@click.option('-p', '--port', envvar='DATABASE_PORT', help='Database port')
-@click.option('-u', '--user', envvar='DATABASE_USER', help='Database user')
-@click.option('--password', envvar='DATABASE_PASSWORD', help='Database password', prompt=True, hide_input=True)
-@click.option('--migrations-dir', 'migrations_dir', default='migrations', help='Migrations base directory')
-def migrate(database, host, port, user, password, migrations_dir):
+def migrate(database, host, port, user, password, migrations_dir='migrations'):
 	db.init(
 		database,
 		host=host,
 		port=port,
 		user=user,
-		password=password
+		password=password,
 	)
-
 	migrations = load_migrations(migrations_dir)
 	validate_refs(migrations)
 	applied = get_applied()
@@ -157,5 +149,16 @@ def migrate(database, host, port, user, password, migrations_dir):
 	apply_migrations(to_apply, set(applied), migrator)
 
 
+@click.command()
+@click.option('-d', '--database', envvar='DATABASE_NAME', help='Database name')
+@click.option('-h', '--host', envvar='DATABASE_HOST', help='Database host')
+@click.option('-p', '--port', envvar='DATABASE_PORT', help='Database port')
+@click.option('-u', '--user', envvar='DATABASE_USER', help='Database user')
+@click.option('--password', envvar='DATABASE_PASSWORD', help='Database password', prompt=True, hide_input=True)
+@click.option('--migrations-dir', 'migrations_dir', default='migrations', help='Migrations base directory')
+def migrate_command_line(database, host, port, user, password, migrations_dir):
+	migrate(database, host, port, user, password, migrations_dir)
+
+
 if __name__ == '__main__':
-	migrate()
+	migrate_command_line()

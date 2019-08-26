@@ -1,3 +1,4 @@
+import os
 from peewee import Model, CharField, DateTimeField
 from playhouse.pool import PooledPostgresqlExtDatabase
 
@@ -19,5 +20,8 @@ class MigrationModel(Model):
 		table_function = lambda model: model.__name__
 
 class DatabaseMigration(Model):
+	class Meta:
+		table_name = os.getenv('DATABASE_MIGRATION_TABLE_NAME', 'databasemigration')
+
 	name = CharField()
 	applied = DateTimeField()
