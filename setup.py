@@ -9,6 +9,6 @@ setup(
 	install_requires=["click", "peewee", "psycopg2-binary"],
 	entry_points="""
 		[console_scripts]
-		migrate=migrate_peewee.scripts.migrate:migrate
+		migrate=migrate_peewee.scripts.migrate:migrate_command_line
 	"""
 )
