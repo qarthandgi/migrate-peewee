@@ -56,13 +56,20 @@ class LazyModelIntrospector(object):
 		self.db = db
 		self.generated = False
 		self.models = {}
+
 	def __getattr__(self, name):
 		if not getattr(self, 'generated'):
-			self.models = getattr(self, 'generate_models')()
+			self.models = self.generate_models()
 			self.generated = True
 		return getattr(self, 'models')[name]
-	def generate_models(self):
-		return Introspector.from_database(self.db).generate_models()
+
+	def preload(self, table_names):
+		self.models = self.generate_models(table_names=table_names)
+		self.generated = True
+
+	def generate_models(self, *args, **kwargs):
+		return Introspector.from_database(self.db).generate_models(*args, **kwargs)
+
 
 
 class SFMigrator(PostgresqlMigrator):
