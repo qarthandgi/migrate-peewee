@@ -3,6 +3,7 @@
 import glob
 import logging
 import os
+import re
 import sys
 from datetime import datetime
 from importlib.machinery import SourceFileLoader
@@ -118,12 +119,16 @@ class SFMigrator(PostgresqlMigrator):
 			queries.append(query)
 		
 		indexes = db.execute_sql("SELECT indexname FROM pg_indexes WHERE tablename = %s", (old_name,))
+		replace_old_name = re.compile(re.escape(old_name), re.IGNORECASE)
 
 		for row in indexes.fetchall():
-			# auto-generated indexes all have the table name as lowercase
-			new_index_name = row[0].replace(old_name.lower(), new_name.lower())
-			query = f'ALTER INDEX IF EXISTS "{row[0]}" RENAME TO "{new_index_name}"'
-			queries.append(query)
+			# auto-generated indexes all have the table name as lowercase, but
+			# human-generated ones may have different casing
+			new_index_name = replace_old_name.sub(new_name.lower(), row[0])
+
+			if new_index_name != row[0]:
+				query = f'ALTER INDEX IF EXISTS "{row[0]}" RENAME TO "{new_index_name}"'
+				queries.append(query)
 
 		queries.append(f'ALTER SEQUENCE IF EXISTS "{old_name}_seq_seq" RENAME TO "{new_name}_seq_seq"')
 		queries.append(f"""
