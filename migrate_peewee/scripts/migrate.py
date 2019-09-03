@@ -94,6 +94,48 @@ class SFMigrator(PostgresqlMigrator):
 		db.drop_tables(models)
 
 
+	@operation
+	def rename_table(self, old_name, new_name):
+		"""
+		Overridden rename_table, because the built-in one does not work with our case-sensitive
+		naming scheme, and we need to also rename constraints and indexes
+		"""
+
+		queries = []
+
+		constraints = db.execute_sql("""
+			SELECT c.conname AS constraint_name,
+				c.contype AS constraint_type,
+				tbl.relname AS "table"
+			FROM pg_constraint c
+				JOIN LATERAL UNNEST(c.conkey) WITH ORDINALITY AS u(attnum, attposition) ON TRUE
+				JOIN pg_class tbl ON tbl.oid = c.conrelid
+			where tbl.relname = %s
+			GROUP BY constraint_name, constraint_type, "table" """, (old_name,))
+		
+		for row in constraints.fetchall():
+			query = f'ALTER TABLE IF EXISTS "{old_name}" RENAME CONSTRAINT "{row[0]}" TO "{row[0].replace(old_name, new_name)}"'
+			queries.append(query)
+		
+		indexes = db.execute_sql("SELECT indexname FROM pg_indexes WHERE tablename = %s", (old_name,))
+
+		for row in indexes.fetchall():
+			# auto-generated indexes all have the table name as lowercase
+			new_index_name = row[0].replace(old_name.lower(), new_name.lower())
+			query = f'ALTER INDEX IF EXISTS "{row[0]}" RENAME TO "{new_index_name}"'
+			queries.append(query)
+
+		queries.append(f'ALTER SEQUENCE IF EXISTS "{old_name}_seq_seq" RENAME TO "{new_name}_seq_seq"')
+		queries.append(f"""
+			ALTER TABLE IF EXISTS "{old_name}"
+			ALTER COLUMN seq SET DEFAULT nextval('"{new_name}_seq_seq"'::regclass)
+		""")
+		queries.append(f'ALTER TABLE IF EXISTS "{old_name}" RENAME TO "{new_name}"')
+
+		for query in queries:
+			db.execute_sql(query)
+
+
 def get_migrator():
 	migrator = SFMigrator(db)
 	return migrator
