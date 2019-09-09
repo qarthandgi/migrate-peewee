@@ -11,7 +11,7 @@ from os.path import basename, dirname, isfile, join
 
 import click
 
-from peewee import SQL, Model
+from peewee import SQL, Model, Entity
 from playhouse.migrate import PostgresqlMigrator
 from playhouse.migrate import migrate as migrate_
 from playhouse.migrate import operation
@@ -136,6 +136,14 @@ class SFMigrator(PostgresqlMigrator):
 			db.execute_sql(query)
 
 
+	@operation
+	def add_primary_key(self, table, *column_names):
+		return (self
+		._alter_table(self.make_context(), table)
+		.literal(' ADD PRIMARY KEY (')
+		.literal(', '.join(column_names))
+		.literal(')'))
+
 def get_migrator():
 	migrator = SFMigrator(db)
 	return migrator
@@ -161,7 +169,8 @@ def apply_migrations(migrations, applied, migrator):
 				models = LazyModelIntrospector(db) #Introspector.from_database(db).generate_models()
 				operations = m.migrate(migrator, models)
 				if operations:
-					migrate_(*operations)
+					for op in operations:
+						op.run()
 				DatabaseMigration.create(name=m.name, applied=datetime.now())
 				completed.add(m)
 
