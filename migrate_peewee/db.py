@@ -16,7 +16,6 @@ db = spawn_deferred_db()
 
 class MigrationModel(Model):
 	class Meta:
-		database = db
 		table_function = lambda model: model.__name__
 
 class DatabaseMigration(Model):
