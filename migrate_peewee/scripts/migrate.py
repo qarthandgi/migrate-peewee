@@ -18,7 +18,7 @@ from playhouse.migrate import migrate as migrate_
 from playhouse.migrate import operation
 from playhouse.reflection import Introspector
 
-from migrate_peewee.db import db, DatabaseMigration
+from migrate_peewee.db import spawn_deferred_db, DatabaseMigration
 
 class MigrationError(BaseException):
 	pass
@@ -88,11 +88,13 @@ class SFMigrator(PostgresqlMigrator):
 
 	@operation
 	def create_model_tables(self, *models):
-		db.create_tables(models)
+		for model in models:
+			model.bind(self.database)
+		self.database.create_tables(models)
 
 	@operation
 	def drop_model_tables(self, *models):
-		db.drop_tables(models)
+		self.database.drop_tables(models)
 
 
 	@operation
@@ -104,7 +106,7 @@ class SFMigrator(PostgresqlMigrator):
 
 		queries = []
 
-		constraints = db.execute_sql("""
+		constraints = self.database.execute_sql("""
 			SELECT c.conname AS constraint_name,
 				c.contype AS constraint_type,
 				tbl.relname AS "table"
@@ -113,12 +115,12 @@ class SFMigrator(PostgresqlMigrator):
 				JOIN pg_class tbl ON tbl.oid = c.conrelid
 			where tbl.relname = %s
 			GROUP BY constraint_name, constraint_type, "table" """, (old_name,))
-		
+
 		for row in constraints.fetchall():
 			query = f'ALTER TABLE IF EXISTS "{old_name}" RENAME CONSTRAINT "{row[0]}" TO "{row[0].replace(old_name, new_name)}"'
 			queries.append(query)
-		
-		indexes = db.execute_sql("SELECT indexname FROM pg_indexes WHERE tablename = %s", (old_name,))
+
+		indexes = self.database.execute_sql("SELECT indexname FROM pg_indexes WHERE tablename = %s", (old_name,))
 		replace_old_name = re.compile(re.escape(old_name), re.IGNORECASE)
 
 		for row in indexes.fetchall():
@@ -138,7 +140,7 @@ class SFMigrator(PostgresqlMigrator):
 		queries.append(f'ALTER TABLE IF EXISTS "{old_name}" RENAME TO "{new_name}"')
 
 		for query in queries:
-			db.execute_sql(query)
+			self.database.execute_sql(query)
 
 
 	@operation
@@ -149,11 +151,11 @@ class SFMigrator(PostgresqlMigrator):
 		.literal(', '.join(column_names))
 		.literal(')'))
 
-def get_migrator():
+def get_migrator(db):
 	migrator = SFMigrator(db)
 	return migrator
 
-def get_applied():
+def get_applied(db):
 	DatabaseMigration.bind(db)
 	if DatabaseMigration.table_exists():
 		return [m.name for m in DatabaseMigration.select(DatabaseMigration.name)]
@@ -161,7 +163,7 @@ def get_applied():
 		DatabaseMigration.create_table()
 		return []
 
-def apply_migrations(migrations, applied, migrator):
+def apply_migrations(db, migrations, applied, migrator):
 	def is_ready(migration):
 		return set(migration.dependencies).issubset(applied) or migration.initial
 	completed = set()
@@ -183,11 +185,12 @@ def apply_migrations(migrations, applied, migrator):
 	remaining = migrations - completed
 	now_applied = applied | set(c.name for c in completed)
 	if len(remaining):
-		apply_migrations(remaining, now_applied, migrator)
+		apply_migrations(db, remaining, now_applied, migrator)
 
 
 
 def migrate(database, host, port, user, password, migrations_dir='migrations'):
+	db = spawn_deferred_db()
 	db.init(
 		database,
 		host=host,
@@ -197,7 +200,7 @@ def migrate(database, host, port, user, password, migrations_dir='migrations'):
 	)
 	migrations = load_migrations(migrations_dir)
 	validate_refs(migrations)
-	applied = get_applied()
+	applied = get_applied(db)
 	to_apply = set()
 	for m in migrations:
 		if m.name not in applied:
@@ -208,8 +211,11 @@ def migrate(database, host, port, user, password, migrations_dir='migrations'):
 		print('Appling %s migration(s)' % to_apply_count)
 	else:
 		print('No migrations to apply')
-	migrator = get_migrator()
-	apply_migrations(to_apply, set(applied), migrator)
+	migrator = get_migrator(db)
+	try:
+		apply_migrations(db, to_apply, set(applied), migrator)
+	finally:
+		db.close_all()
 
 
 @click.command()
