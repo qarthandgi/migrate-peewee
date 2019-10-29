@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
 	name="migrate-peewee",
-	version="0.0.8",
+	version="0.0.9",
 	description="Database Migrator for Peewee",
 	url="https://github.com/ServiceF/migrate-peewee.git",
 	py_modules=["migrate_peewee"],
